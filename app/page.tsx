@@ -7,37 +7,56 @@ import type { Case } from "@/lib/types";
 
 export const revalidate = 3600;
 
-async function getCasesByFilter(filter: Record<string, unknown>, limit = 10): Promise<Case[]> {
-  let q = supabase.from("cases").select("*").order("release_date", { ascending: false, nullsFirst: false }).limit(limit);
-  for (const [key, val] of Object.entries(filter)) {
-    if (Array.isArray(val)) {
-      q = q.contains(key, val);
-    } else {
-      q = (q as ReturnType<typeof q.eq>).eq(key, val);
-    }
-  }
-  const { data } = await q;
+async function getByFileType(type: string, limit = 10): Promise<Case[]> {
+  const { data } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("file_type", type)
+    .order("release_date", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  return (data as Case[]) ?? [];
+}
+
+async function getByStatus(status: string, limit = 10): Promise<Case[]> {
+  const { data } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("status", status)
+    .order("release_date", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  return (data as Case[]) ?? [];
+}
+
+async function getByAgency(agency: string, limit = 10): Promise<Case[]> {
+  const { data } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("agency", agency)
+    .order("release_date", { ascending: false, nullsFirst: false })
+    .limit(limit);
+  return (data as Case[]) ?? [];
+}
+
+async function getFeatured(limit = 10): Promise<Case[]> {
+  const { data } = await supabase
+    .from("cases")
+    .select("*")
+    .eq("featured", true)
+    .order("release_date", { ascending: false, nullsFirst: false })
+    .limit(limit);
   return (data as Case[]) ?? [];
 }
 
 export default async function HomePage() {
-  const [
-    stats,
-    featured,
-    videos,
-    pdfs,
-    unresolved,
-    aaro,
-  ] = await Promise.all([
+  const [stats, featured, videos, pdfs, unresolved, aaro] = await Promise.all([
     getStats(),
-    getCasesByFilter({ featured: true }, 10),
-    getCasesByFilter({ file_type: "Video" }, 10),
-    getCasesByFilter({ file_type: "PDF" }, 10),
-    getCasesByFilter({ status: "unresolved" }, 10),
-    getCasesByFilter({ agency: "AARO (All-domain Anomaly Resolution Office)" }, 10),
+    getFeatured(10),
+    getByFileType("Video", 10),
+    getByFileType("PDF", 10),
+    getByStatus("unresolved", 10),
+    getByAgency("AARO (All-domain Anomaly Resolution Office)", 10),
   ]);
 
-  // Pick the top featured case for the hero
   const hero = featured[0] ?? unresolved[0];
 
   return (
@@ -45,18 +64,15 @@ export default async function HomePage() {
 
       {/* ══ HERO ══════════════════════════════════════════════════ */}
       <section className="relative min-h-[70vh] flex items-end overflow-hidden">
-        {/* Background gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(6,182,212,0.08),_transparent_60%)]" />
-
-        {/* Scan-line texture */}
-        <div className="absolute inset-0 opacity-30"
+        <div
+          className="absolute inset-0 opacity-30"
           style={{
-            backgroundImage: "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,255,0.03) 2px,rgba(0,255,255,0.03) 4px)"
+            backgroundImage:
+              "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,255,0.03) 2px,rgba(0,255,255,0.03) 4px)",
           }}
         />
-
-        {/* Floating orbs */}
         <div className="absolute top-20 right-1/4 h-64 w-64 rounded-full bg-cyan-500/5 blur-3xl pointer-events-none" />
         <div className="absolute top-40 right-1/3 h-40 w-40 rounded-full bg-blue-500/5 blur-2xl pointer-events-none" />
 
@@ -72,9 +88,9 @@ export default async function HomePage() {
             </h1>
 
             <p className="mt-5 text-lg text-slate-400 leading-relaxed max-w-xl">
-              Every officially released U.S. government UAP document in one place.
-              Watch the videos. Read the reports. Understand what the government
-              actually released — without the confusion.
+              Every officially released U.S. government UAP document in one
+              place. Watch the videos. Read the reports. Understand what the
+              government actually released — without the confusion.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -108,13 +124,12 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Stats strip */}
           <div className="mt-14 flex flex-wrap gap-6">
             {[
-              { label: "Total records", value: stats.total },
-              { label: "Unresolved cases", value: stats.unresolved },
+              { label: "Total records",       value: stats.total },
+              { label: "Unresolved cases",    value: stats.unresolved },
               { label: "Government agencies", value: stats.agencies },
-              { label: "Video files", value: videos.length },
+              { label: "Video files",         value: videos.length },
             ].map(({ label, value }) => (
               <div key={label} className="text-center">
                 <p className="text-3xl font-bold text-white">{value}</p>
@@ -125,47 +140,27 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ══ CONTENT ROWS — Netflix style ═══════════════════════════ */}
+      {/* ══ NETFLIX ROWS ══════════════════════════════════════════ */}
       <div className="mx-auto max-w-7xl space-y-12 px-4 py-12 sm:px-6">
 
         {videos.length > 0 && (
-          <CategoryRow
-            title="📹  Video Files"
-            cases={videos}
-            viewAllHref="/search?type=Video"
-          />
+          <CategoryRow title="📹  Video Files" cases={videos} viewAllHref="/search?type=Video" />
         )}
 
         {featured.length > 0 && (
-          <CategoryRow
-            title="⭐  Featured Records"
-            cases={featured}
-            viewAllHref="/search"
-          />
+          <CategoryRow title="⭐  Featured Records" cases={featured} viewAllHref="/search" />
         )}
 
         {unresolved.length > 0 && (
-          <CategoryRow
-            title="🔴  Unresolved Cases"
-            cases={unresolved}
-            viewAllHref="/search?status=unresolved"
-          />
+          <CategoryRow title="🔴  Unresolved Cases" cases={unresolved} viewAllHref="/search?status=unresolved" />
         )}
 
         {pdfs.length > 0 && (
-          <CategoryRow
-            title="📄  Declassified Documents"
-            cases={pdfs}
-            viewAllHref="/search?type=PDF"
-          />
+          <CategoryRow title="📄  Declassified Documents" cases={pdfs} viewAllHref="/search?type=PDF" />
         )}
 
         {aaro.length > 0 && (
-          <CategoryRow
-            title="🛡️  AARO Releases"
-            cases={aaro}
-            viewAllHref="/search?agency=AARO+%28All-domain+Anomaly+Resolution+Office%29"
-          />
+          <CategoryRow title="🛡️  AARO Releases" cases={aaro} viewAllHref="/search" />
         )}
 
         <Disclaimer />
